@@ -1,9 +1,10 @@
 package com.hmdp;
 
-import cn.hutool.core.lang.UUID;
 import com.hmdp.entity.Shop;
 import com.hmdp.service.IShopService;
 import com.hmdp.service.impl.ShopServiceImpl;
+import com.hmdp.utils.CacheClient;
+import com.hmdp.utils.RedisConstants;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.connection.RedisGeoCommands;
@@ -11,7 +12,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.geo.Point;
 
 import javax.annotation.Resource;
-import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,22 +28,24 @@ class HmDianPingApplicationTests {
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private IShopService shopService;
+    @Resource
+    private CacheClient cacheClient;
+
+    /**
+     * 预热一家店铺的缓存。
+     * 逻辑过期时间故意给得很短（10 秒），方便观察"逻辑过期之后由异步线程重建"的效果
+     */
     @Test
     void saveTestShop(){
-        service.saveShopRedis(1L,10L);
+        Shop shop = service.getById(1L);
+        cacheClient.setWithLogicalExpire(
+                RedisConstants.CACHE_SHOP_KEY + 1L, shop, 10L, TimeUnit.SECONDS);
     }
 
-    @Test
-    void setLock(){
-        String KEY_PREFIX="lock:";
-        String ID_PREFIX= UUID.randomUUID().toString(true)+"-";
-        String name="user";
-        //获取线程 id 作为锁的标识
-        Long id = Thread.currentThread().getId();
-        //设置锁，设置时间
-        Boolean b = stringRedisTemplate.opsForValue().
-                setIfAbsent(KEY_PREFIX + name, ID_PREFIX + id, 30, TimeUnit.SECONDS);
-    }
+    /**
+     * 把数据库里的店铺按类型写进 Redis 的 GEO 结构。
+     * 附近店铺查询依赖这份数据，换库或者清过 Redis 之后要重新跑一次
+     */
     @Test
     void loadShopData() {
         // 1.查询店铺信息
@@ -60,7 +62,6 @@ class HmDianPingApplicationTests {
             List<RedisGeoCommands.GeoLocation<String>> locations = new ArrayList<>(value.size());
             // 3.3.写入redis GEOADD key 经度 纬度 member
             for (Shop shop : value) {
-                // stringRedisTemplate.opsForGeo().add(key, new Point(shop.getX(), shop.getY()), shop.getId().toString());
                 locations.add(new RedisGeoCommands.GeoLocation<>(
                         shop.getId().toString(),
                         new Point(shop.getX(), shop.getY())
