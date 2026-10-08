@@ -1,0 +1,12 @@
+# 配置模板 —— 复制本文件为同目录下的 application-dev.yaml，再填入真实值。
+# application-dev.yaml 已加入 .gitignore，不会被提交到仓库。
+hmdp:
+  datasource:
+    host: 127.0.0.1
+    port: 3306
+    database: dpxm
+    username: root
+    password: <你的数据库密码>
+  redis:
+    host: 127.0.0.1
+    port: 6379
